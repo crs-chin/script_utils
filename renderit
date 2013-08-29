@@ -1,0 +1,96 @@
+#!/bin/bash
+
+#
+# Based on colorit by Aleksey Cheusov <vle@gmx.net>
+# Enhanced by Crs.
+#
+
+usage (){
+   printf "\
+renderit is intended to markup stdin or input files\n\
+and output result to stdout\n\
+\n\
+usage: renderit [OPTIONS] [files...]\n\
+OPTIONS:\n\
+ -h  --help      display this screen\n\
+ -V  --verbose   display version\n\
+ -c  --config    specify a configuration file\n\
+ -s  --script    specify filter script\n\
+     --pp        specify preprocessor (- for none). The default is \"m4\"\n\
+"
+}
+
+version (){
+    printf "\
+colorit 0.0.2\n\
+"
+}
+
+pp='m4'
+script=renderit
+
+
+# Avoid conflict with colorit
+if test -r "$HOME/.renderitrc"; then
+   config_file="$HOME/.renderitrc"
+elif test -r "$sysconfdir/renderit.conf"; then
+   config_file="$sysconfdir/renderit.conf"
+fi
+
+while test $# -ne 0; do
+    case $1 in
+	    -h|--help)
+	        usage;
+	        exit 0;
+            ;;
+	    -V|--version)
+	        version;
+	        exit 0;
+            ;;
+	    -c|--config)
+	        config_file=$2;
+	        shift;
+            ;;
+        -s|--script)
+            script=$2;
+            shift;
+            ;;
+	    --pp)
+	        pp=$2;
+	        shift;;
+	    --)
+	        shift
+	        break;;
+	    -*)
+	        echo "unknown argument '$1'" 1>&2
+	        break;;
+	    *)
+	        break;;
+    esac
+    shift
+done
+
+if test "_$pp" = "_-"; then
+   pp=""
+fi
+
+if [ -f "$config_file" ];then
+    CONFIG="$config_file"
+elif [ -f "$HOME/.renderit/${config_file}" ];then
+    CONFIG="$HOME/.renderit/${config_file}"
+elif [ -n "$config_file" ];then
+    echo "Bad config file!" 1>&2
+    exit 1;
+fi
+
+if [ ! -f "$HOME/.renderit/${script}.awk" ];then
+    echo "No spcript found!" 1>&2
+    exit 1;
+fi
+
+convert_files_to_stdout (){
+    gawk -v config_file="$CONFIG" -v pp="$pp" -f "$HOME/.renderit/${script}.awk" "$@"
+}
+
+convert_files_to_stdout "$@"
+

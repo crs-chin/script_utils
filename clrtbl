@@ -1,0 +1,51 @@
+#!/bin/bash
+
+
+#unsafe range function, use in care
+
+range()
+{
+    case $# in
+	0)
+	    return;;
+	1)
+	    echo "$1";;
+	2)
+	    i=$1;
+	    j=$2;
+	    while [ $i -le $j ];
+	    do
+		echo -n "$((i++)) "
+	    done
+	    ;;
+	3)
+	    i=$1;
+	    int=$2;
+	    j=$3;
+	    echo "$i "
+	    while [ $i -le $j ];
+	    do
+		echo "$((i+=int)) "
+	    done
+	    ;;
+    esac
+}
+
+clrtbl()
+{
+    if [ $# -eq 0 ];then
+	str="Hello,Bash!"
+    else
+	str=$@
+    fi
+    for i in `range 0 9` ;
+    do
+	echo -e "\e[m${i}:\e[${i}m${str}\e[m    $((i+30)):\e[$((i+30))m${str}\e[m    $((i+40)):\e[$((i+40))m$str\e[m"
+    done
+}
+
+if [ $# -eq 0 ];then
+    clrtbl Qin Xiaoxue
+else
+    clrtbl $@
+fi

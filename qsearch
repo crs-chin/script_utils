@@ -1,0 +1,202 @@
+#!/bin/sh
+
+bookdir="/home/storeroom/books"
+videodir="/home/storeroom/mmedia/video"
+audiodir="/home/storeroom/mmedia/audio"
+homedir="`echo ~/*`"
+
+search_list="$bookdir $videodir $audiodir $homedir"
+datadir=~/.qsearch
+
+help()
+{
+    echo "qsearch  -- a index and search script written for convenience
+
+USAGE:
+    qsearch [OPTIONS] EXPLIST
+
+OPTIONS:
+    -r,--rebuild-database        rebuild the search index files
+    -b,--books                   searching the books
+    -v,--video                   searching the videoes on the system
+    -a,--audio                   searching the audio files on the system
+    -p,--package                 searching the packages installed on the system
+    -f,--installedfile           searching files from the installed packaged
+    -h,--help                    display this help and exit
+
+    the default bahavior is to anything possible from the system according to the EXPLIST
+                                                     --written by q"
+}
+
+restore()
+{
+setterm -cursor on;
+exit 0;
+}
+
+show_active()
+{
+setterm -cursor off
+trap restore INT HUP 
+i=1
+echo -ne " ";
+while true;
+do
+    case $((i++%4)) in
+	0)
+	    echo -ne "\b-"
+	    ;;
+	1)
+	    echo -ne "\b\\"
+	    ;;
+	2)
+	    echo -ne "\b|"
+	    ;;
+	3)
+	    echo -ne "\b/"
+	    ;;
+    esac
+    sleep 0.08;
+done
+}
+
+
+##indexing directories..
+# __index_dir  THIS_INDEXING_NAME FILE_TO_STORE_INDEXING_DATA DIR_LIST_TO INDEX
+__index_dir()
+{
+echo -n "indexing $1 ..."
+show_active &
+pid=$!
+shift
+file=$1
+shift
+test -e $file && rm -f $file
+for i in "$@"
+do
+    find $i >> $file
+done
+gzip -f $file
+kill -HUP $pid
+echo -ne "\b\e[34mdone.\e[m\n"
+}
+
+generate_database()
+{
+echo "Generate All indexing files..."
+mkdir -p $datadir/{books,video,audio,home,package,installedfile}
+__index_dir books ${datadir}/books/booklist ${bookdir}
+__index_dir audio ${datadir}/audio/audiolist ${audiodir}
+__index_dir video ${datadir}/video/videolist ${videodir}
+__index_dir home ${datadir}/home/homelist ${homedir}
+
+# for i in $search_list ;
+# do
+#     echo  -n "indexing $i..."
+#     show_active &
+#     pid=$!
+#     find $i >> ${datadir}/${i//\//\\}
+#     gzip  ${datadir}/${i//\//\\}
+#     kill $pid
+#     echo -ne "\bdone.\n"
+# done
+echo -n "generating system package list..."
+show_active &
+pid=$!
+dpkg -l > ${datadir}/package/packagelist
+gzip  -f  ${datadir}/package/packagelist
+kill -HUP $pid
+echo -ne "\b\e[34mdone.\e[m\n"
+
+echo -n "generating system installed filelist..."
+show_active &
+pid=$!
+destfile="${datadir}/installedfile/filelist"
+test -e $destfile && rm -f $destfile
+for i in /var/lib/dpkg/info/*.list;
+do
+    cat $i >> ${destfile}
+done
+gzip -f  ${destfile}
+kill -HUP $pid
+echo -ne "\b\e[34mdone.\e[m\n"
+echo "ALL DONE!"
+}
+
+##grep data files in specified way
+# __grep_catalog GREP_TYPE WHAT_TO_GREP_AND_GREP_ARGS
+__grep_catalog()
+{
+tmp=/tmp/${1}$RANDOM
+dir=$datadir/${1}
+shift
+for i in $dir/*;
+do
+    zcat $i | grep $@ >> $tmp
+done
+if [ -s $tmp ];then
+    echo -e "\e[4;32;44mMatchings Found In `basename $dir`:\e[m"
+    i=1
+    while read j;
+    do
+	echo -e "\e[m    \e[33m[$((i++))]\e[4;32m$j";
+    done < $tmp
+    echo -ne "\e[m"
+else
+    echo -e "\e[0;36;41m No Matchings Found In `basename $dir`!\e[m"
+fi
+rm -f $tmp
+}
+
+
+test -d $datadir || generate_database ;
+
+case $1 in
+    -r|--rebuild-database)
+	generate_database
+	exit 0;
+	;;
+    -b|--books)
+	__grep_catalog books -i $2
+	shift 2
+	;;
+    -v|--video)
+	__grep_catalog video -i $2
+	shift 2
+	;;
+    -a|--audio)
+	__grep_catalog audio -i $2
+	shift 2
+	;;
+    -p|--package)
+	__grep_catalog package -i $2 
+	shift 2
+	;;
+    -f|--installedfile)
+	__grep_catalog installedfile -i $2
+	shift 2
+	;;
+    -h|--help)
+	help
+	exit 0;
+	;;
+    -*|--*)
+	echo -e "\e[31mBad option [\e[m$1\e[31m] !\e[m"
+	help
+	exit 0;
+	;;
+    "")
+	exit 0;
+	;;
+    *)
+	for i in books video audio home package installedfile
+	do
+	    __grep_catalog $i  -i $1
+	done
+	shift
+	;;
+esac
+
+
+
+
